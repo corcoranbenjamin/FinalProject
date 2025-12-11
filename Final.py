@@ -27,9 +27,12 @@ endPauseTime = 1.0    #longer pause at the end of animation
 minWS = abs(L1 - L2)  
 maxWS = L1 + L2     
 
-#joint limits and maximum cartesian velocity
-jointLimits = [np.deg2rad(-90), np.deg2rad(90)]
-maxCartesianVelocity = 0.15  #meters per second
+#maximum velocity of the end effector
+maxVelocity = 0.15 
+
+#initialize center of shape and radius/side length size
+shapeCenter = [0.5, 0.3] 
+sideLength = 0.2  
 
 #notes:
 #increased kp until there was no steady state error
@@ -40,12 +43,9 @@ maxCartesianVelocity = 0.15  #meters per second
 Kp = np.array([15, 50])  
 Kd = np.array([100, 10])    
 
-#shape center and size
-shapeCenter = [0.5, 0.3]  #center of shape in workspace
-shapeSize = 0.2  #size of shape (radius for circle, side length for square/triangle)
-
 
 #************************ FUNCTIONS ***************************
+
 #function returns theta 1 and 2 for a given x, y position
 #input: x, y (meters)
 #output: theta1, theta2 (radians)
@@ -118,15 +118,16 @@ def generateShapeWaypoints(shape, center, size):
     return waypoints, isContinuous
 
 
-#generates smooth continuous trajectory for oval/circular shapes
+#generates continuous trajectory for oval/circular shapes
 #input: waypoints [[x1, y1], ...], totalTime (seconds)
 #output: trajectory [(theta1, theta2, thetaDot1, thetaDot2, thetaDoubleDot1, thetaDoubleDot2)]
 def generateContinuousTrajectory(waypoints, totalTime):
     
     trajectory = []
-    numPoints = len(waypoints) - 1  #exclude duplicate end point
+    numPoints = len(waypoints) - 1  
     
     t = 0
+
     while t < totalTime:
         #parameter s goes from 0 to numPoints as t goes from 0 to totalTime
         s = (t / totalTime) * numPoints
@@ -193,20 +194,20 @@ def generateContinuousTrajectory(waypoints, totalTime):
     return trajectory
 
 
-#calculates the total duration of cartesian trajectory segment
-#input: initial and final positions [x, y] (meters)
+#calculates the duration of the trajectory segment based on the distance between the initial and final positions
+#input: initial and final positions [x, y] 
 #output: total duration of trajectory (seconds)
 def cartesianTrajectoryDuration(initialPos, finalPos):
     
-    #calculate distance between initial and final positions
-    distance = np.sqrt((finalPos[0] - initialPos[0])**2 + (finalPos[1] - initialPos[1])**2)
+    initialX, initialY = initialPos
+    finalX, finalY = finalPos
     
-    #determine duration based on max cartesian velocity
-    totalDuration = distance / maxCartesianVelocity
+    #use pythagorean theorem to calculate the distance between the initial and final positions
+    distance = np.sqrt((finalX - initialX)**2 + (finalY - initialY)**2)
     
-    #ensure minimum duration for very short segments
-    if totalDuration < 0.1:
-        totalDuration = 0.1
+    #divide distance in meters by the maximum velocity of the end effector to get the duration 
+    totalDuration = distance / maxVelocity
+    
     
     return totalDuration
 
@@ -295,7 +296,7 @@ def generateFullTrajectory(waypoints):
     
     fullTrajectory = []
     
-    #generate trajectory between each consecutive pair of waypoints
+    #generate trajectory between each consecutive pair of waypoints and add to the full trajectory
     for i in range(len(waypoints) - 1):
         segment = generateCartesianTrajectory(waypoints[i], waypoints[i+1])
         fullTrajectory.extend(segment)
@@ -364,7 +365,7 @@ def animate(event):
     if event.key == 'enter' and animationRunning == False:
 
         #set animationRan flag so animation only runs once
-        figure.set_title(f'Animating {selectedShape}')
+        figure.set_title(f'Animating {shapeName}')
         animationRunning = True
 
         #store EE trace for visualization
@@ -388,7 +389,7 @@ def animate(event):
         
         #set animation running flag back to false and update title
         animationRunning = False
-        figure.set_title(f'Press Enter to animate {selectedShape}')
+        figure.set_title(f'Press Enter to animate {shapeName}')
         
         #clear the trace for next animation
         eePath.set_data([], [])
@@ -405,11 +406,11 @@ shapeChoice = input("Enter shape (1/2/3): ").strip()
 
 #map user input to shape name
 shapeMap = {'1': 'oval', '2': 'square', '3': 'triangle'}
-selectedShape = shapeMap.get(shapeChoice, 'oval')
-print(f"Selected shape: {selectedShape}")
+shapeName = shapeMap.get(shapeChoice, 'oval')
+print(f"Selected shape: {shapeName}")
 
 #generate waypoints for selected shape
-waypoints, isContinuous = generateShapeWaypoints(selectedShape, shapeCenter, shapeSize)
+waypoints, isContinuous = generateShapeWaypoints(shapeName, shapeCenter, sideLength)
 
 #create figure object for plotting
 fig, figure = plt.subplots(figsize=(7, 7))
@@ -426,7 +427,7 @@ figure.set_ylabel('Y (meters)')
 
 #plot the target shape path
 waypointsArray = np.array(waypoints)
-shapePath, = figure.plot(waypointsArray[:, 0], waypointsArray[:, 1], 'g--', linewidth=2, label=f'Target {selectedShape}')
+shapePath, = figure.plot(waypointsArray[:, 0], waypointsArray[:, 1], 'g--', linewidth=2, label= 'Desired')
 
 #show robot at starting configuration (first waypoint)
 startTheta1, startTheta2 = inverseKinematics(waypoints[0][0], waypoints[0][1])
@@ -435,7 +436,7 @@ link1, = figure.plot([0, x1Start], [0, y1Start], 'o-', linewidth=3, color='orang
 link2, = figure.plot([x1Start, x2Start], [y1Start, y2Start], 'o-', linewidth=3, color='orange')
 
 #add line for tracing end effector path during animation
-eePath, = figure.plot([], [], 'r-', linewidth=1.5, alpha=0.7, label='EE Path')
+eePath, = figure.plot([], [], 'r-', linewidth=1.5, alpha=0.7, label='Actual')
 
 #add legend
 figure.legend(loc='upper right')
@@ -486,6 +487,7 @@ xDesired = []
 yDesired = []
 xActual = []
 yActual = []
+
 for i in range(len(theta1)):
     _, _, xd, yd = forwardKinematics(theta1Desired[i], theta2Desired[i])
     _, _, xa, ya = forwardKinematics(theta1[i], theta2[i])
@@ -501,7 +503,7 @@ cartesianError = np.sqrt((xDesired - xActual)**2 + (yDesired - yActual)**2) * 10
 
 #plot desired vs actual and error for each joint 
 plt.figure(figsize=(12, 10))
-plt.suptitle(f'Controller Performance - {selectedShape.capitalize()} Trajectory', fontsize=14)
+plt.suptitle(f'Controller Performance - {shapeName.capitalize()} Trajectory', fontsize=14)
 
 plt.subplot(2, 2, 1)
 plt.plot(tSpan, theta1DesiredDeg, 'b--', linewidth=2, label='Desired')
@@ -538,7 +540,7 @@ plt.grid(True)
 plt.tight_layout()
 
 #set title for animation figure
-figure.set_title(f'Press Enter to animate {selectedShape}')
+figure.set_title(f'Press Enter to animate {shapeName}')
 
 #connect event handler to start animation on Enter key
 fig.canvas.mpl_connect('key_press_event', animate)
