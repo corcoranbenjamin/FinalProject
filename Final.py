@@ -404,15 +404,18 @@ print("1. Oval")
 print("2. Square")
 print("3. Triangle")
 
+#get input and strip whitespace
 shapeChoice = input("Enter shape (1/2/3): ").strip()
 
 #map user input to shape name
-shapeNames = {'1': 'oval', '2': 'square', '3': 'triangle'}
+shapeOptions = {'1': 'oval', '2': 'square', '3': 'triangle'}
 
-shapeName = shapeMap.get(shapeChoice, 'oval')
+#get the shape name, default to oval if invalid input
+shapeName = shapeOptions.get(shapeChoice, 'oval')
 print(f"Selected shape: {shapeName}")
 
-#generate waypoints for selected shape
+#call generateShapeWaypoints to generate the waypoints necessary for the selected shape
+#function returns waypoints and a bool indicating if the shape is continuous
 waypoints, isContinuous = generateShapeWaypoints(shapeName, shapeCenter, sideLength)
 
 #create figure object for plotting
