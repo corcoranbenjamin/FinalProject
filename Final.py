@@ -397,15 +397,18 @@ def animate(event):
 
 
 #************************ MAIN ***************************
-#prompt user for shape selection
+
+#prompt user to select a shape 
 print("\n Cartesian Trajectory Shape Selection")
 print("1. Oval")
 print("2. Square")
 print("3. Triangle")
+
 shapeChoice = input("Enter shape (1/2/3): ").strip()
 
 #map user input to shape name
-shapeMap = {'1': 'oval', '2': 'square', '3': 'triangle'}
+shapeNames = {'1': 'oval', '2': 'square', '3': 'triangle'}
+
 shapeName = shapeMap.get(shapeChoice, 'oval')
 print(f"Selected shape: {shapeName}")
 
