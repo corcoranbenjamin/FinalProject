@@ -20,7 +20,7 @@ tStep = 0.01
 animationRunning = False
 
 #pause time at each waypoint
-pauseTime = 1.0 
+pauseTime = 0.75 
 
 #define workspace annulus
 minWS = abs(L1 - L2)  
@@ -127,7 +127,7 @@ def generateShapeWaypoints(shape, center, size):
 #calculates the duration of the trajectory segment based on the distance between the initial and final positions
 #input: initial and final positions [x, y] 
 #output: total duration of trajectory (seconds)
-def cartesianTrajectoryDuration(initialPos, finalPos):
+def trajectorySegmentDuration(initialPos, finalPos):
     
     #get initial and final x, y coordinates
     initialX, initialY = initialPos
@@ -136,8 +136,8 @@ def cartesianTrajectoryDuration(initialPos, finalPos):
     #use pythagorean theorem to calculate the distance between the initial and final positions
     distance = np.sqrt((finalX - initialX)**2 + (finalY - initialY)**2)
     
-    #divide distance in meters by the maximum velocity the duration 
-    totalDuration = distance / maxVelocity
+    #total duration is 1.5 times the distance divided by the maximum velocity for cubic trajectory
+    totalDuration = 1.5 * distance / maxVelocity
     
     return totalDuration
 
@@ -145,13 +145,13 @@ def cartesianTrajectoryDuration(initialPos, finalPos):
 #takes time within trajectory segment and returns position, velocity, acceleration for one axis
 #input: t (seconds), posInitial (meters), posFinal (meters), totalDuration (seconds)
 #output: pos (meters), vel (m/s), accel (m/s**2)
-def currentTrajectory(t, posInitial, posFinal, totalDuration):
+def currentTrajectory(t, initialPosition, finalPosition, totalDuration):
 
     #calculate coefficients for trajectory cubic
-    c0 = posInitial
+    c0 = initialPosition
     c1 = 0
-    c2 = 3*(posFinal - posInitial)/(totalDuration**2)
-    c3 = -2*(posFinal - posInitial)/(totalDuration**3)
+    c2 = 3*(finalPosition - initialPosition)/(totalDuration**2)
+    c3 = -2*(finalPosition - initialPosition)/(totalDuration**3)
 
     #get position, velocity, and acceleration at time t
     position = c0 + c1*t + c2*t**2 + c3*t**3
@@ -163,23 +163,23 @@ def currentTrajectory(t, posInitial, posFinal, totalDuration):
     return position, velocity
 
 
-#generate cartesian trajectory segment between two waypoints
+#generate straight trajectory segment between two points 
 #input: initialPos [x, y] (meters), finalPos [x, y] (meters)
 #output: trajectory [(theta1, theta2, thetaDot1, thetaDot2)]
-def generateTrajectorySegment(initialPos, finalPos):
+def generateTrajectorySegment(initialPosition, finalPosition):
     
-    #create empty list to store trajectory and get duration 
+    #create empty list to store trajectory
     trajectory = []
-    totalDuration = cartesianTrajectoryDuration(initialPos, finalPos)
+    totalDuration = trajectorySegmentDuration(initialPosition, finalPosition)
 
     t = 0
 
     #while t is less than the total duration of the trajectory 
     while t < totalDuration:
         
-        #get posibion, velocity and acceleration for x and yat time t using currentTrajectory
-        x, xDot = currentTrajectory(t, initialPos[0], finalPos[0], totalDuration)
-        y, yDot = currentTrajectory(t, initialPos[1], finalPos[1], totalDuration)
+        #get posibion and velocity at time t for x and y
+        x, xDot = currentTrajectory(t, initialPosition[0], finalPosition[0], totalDuration)
+        y, yDot = currentTrajectory(t, initialPosition[1], finalPosition[1], totalDuration)
         
         #use inverse kinematics to get joint angles at time t
         theta1, theta2 = inverseKinematics(x, y)
@@ -206,10 +206,10 @@ def generateTrajectorySegment(initialPos, finalPos):
     t = 0
     
     #get joint angles at final position
-    finalTheta1, finalTheta2 = inverseKinematics(finalPos[0], finalPos[1])
+    finalTheta1, finalTheta2 = inverseKinematics(finalPosition[0], finalPosition[1])
     
     while t < pauseTime:
-        #add to trajectory 
+        #add to trajectory. velocity is zero since it's paused
         trajectory.append((finalTheta1, finalTheta2, 0, 0))
         t += tStep
     
@@ -368,7 +368,7 @@ link2, = figure.plot([x1Start, x2Start], [y1Start, y2Start], 'o-', linewidth=3, 
 eePath, = figure.plot([], [], 'r-', linewidth=1.5, label='Actual')
 
 #add legend
-figure.legend(loc='upper right')
+figure.legend(loc='upper left')
 
 #generate full cartesian trajectory through all waypoints using piecewise method
 fullTrajectory = generateFullTrajectory(waypoints)
