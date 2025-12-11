@@ -19,9 +19,8 @@ tStep = 0.01
 #initialize flag so animation only runs once
 animationRunning = False
 
-#pause time at waypoints and end of animation
-pauseTime = 0.2       #brief pause at corners (square/triangle)
-endPauseTime = 1.0    #longer pause at the end of animation  
+#pause time at each waypoint
+pauseTime = 1.0 
 
 #define workspace annulus
 minWS = abs(L1 - L2)  
@@ -31,7 +30,7 @@ maxWS = L1 + L2
 maxVelocity = 0.15 
 
 #initialize center of shape and radius/side length size
-shapeCenter = [0.5, 0.3] 
+shapeCenter = [0.4, 0.4] 
 sideLength = 0.2  
 
 #notes:
@@ -73,26 +72,34 @@ def forwardKinematics(theta1, theta2):
 
 
 #generates waypoints for the selected shape
-#input: shape (string: 'oval', 'square', 'triangle'), center [x, y], size (radius or side length)
-#output: list of waypoints [[x1, y1], [x2, y2], ...], isContinuous (bool)
+#input: shape (string: 'star', 'square', 'triangle'), center [x, y], size (radius or side length)
+#output: list of waypoints [[x1, y1], [x2, y2], ...]
 def generateShapeWaypoints(shape, center, size):
     
     waypoints = []
     cx, cy = center
-    isContinuous = False  #flag for shapes that need smooth continuous motion
     
-    if shape == 'oval':
-        #oval is a continuous smooth shape - flag it for special trajectory handling
-        isContinuous = True
-        #oval dimensions (wider than tall)
-        a = size      #semi-major axis (horizontal)
-        b = size * 0.6  #semi-minor axis (vertical)
-        numPoints = 60  #more points for smoother curve
-        for i in range(numPoints + 1):
-            angle = 2 * np.pi * i / numPoints
-            x = cx + a * np.cos(angle)
-            y = cy + b * np.sin(angle)
+    if shape == 'star':
+        #generate 5-pointed star
+        outerRadius = size
+        innerRadius = size * 0.4  #inner points closer to center
+        numPoints = 5
+        
+        for i in range(numPoints):
+            #outer point
+            angle = (2 * np.pi * i / numPoints) - np.pi/2  #start at top
+            x = cx + outerRadius * np.cos(angle)
+            y = cy + outerRadius * np.sin(angle)
             waypoints.append([x, y])
+            
+            #inner point (between outer points)
+            angle = (2 * np.pi * (i + 0.5) / numPoints) - np.pi/2
+            x = cx + innerRadius * np.cos(angle)
+            y = cy + innerRadius * np.sin(angle)
+            waypoints.append([x, y])
+        
+        #close the star
+        waypoints.append(waypoints[0])
             
     elif shape == 'square':
         #generate 4 corners of square, starting from top-right going clockwise
@@ -115,99 +122,22 @@ def generateShapeWaypoints(shape, center, size):
             [cx, cy + 2*height/3]               #back to start
         ]
     
-    return waypoints, isContinuous
-
-
-#generates continuous trajectory for oval/circular shapes
-#input: waypoints [[x1, y1], ...], totalTime (seconds)
-#output: trajectory [(theta1, theta2, thetaDot1, thetaDot2, thetaDoubleDot1, thetaDoubleDot2)]
-def generateContinuousTrajectory(waypoints, totalTime):
-    
-    trajectory = []
-    numPoints = len(waypoints) - 1  
-    
-    t = 0
-
-    while t < totalTime:
-        #parameter s goes from 0 to numPoints as t goes from 0 to totalTime
-        s = (t / totalTime) * numPoints
-        
-        #find which segment we're in
-        idx = int(s) % numPoints
-        localS = s - int(s)  #fractional part [0, 1)
-        
-        #get current and next waypoint
-        p0 = np.array(waypoints[idx])
-        p1 = np.array(waypoints[(idx + 1) % numPoints])
-        
-        #linear interpolation for position
-        pos = p0 + localS * (p1 - p0)
-        x, y = pos[0], pos[1]
-        
-        #velocity: derivative of position with respect to time
-        #ds/dt = numPoints / totalTime
-        dsdt = numPoints / totalTime
-        dpos_ds = p1 - p0  #change in position per unit s
-        vel = dpos_ds * dsdt
-        xDot, yDot = vel[0], vel[1]
-        
-        #acceleration is zero for constant velocity along each segment
-        xDoubleDot, yDoubleDot = 0.0, 0.0
-        
-        #convert to joint space using inverse kinematics
-        theta1, theta2 = inverseKinematics(x, y)
-        
-        #compute Jacobian for velocity conversion
-        J11 = -L1*np.sin(theta1) - L2*np.sin(theta1 + theta2)
-        J12 = -L2*np.sin(theta1 + theta2)
-        J21 = L1*np.cos(theta1) + L2*np.cos(theta1 + theta2)
-        J22 = L2*np.cos(theta1 + theta2)
-        J = np.array([[J11, J12], [J21, J22]])
-        
-        #convert cartesian velocity to joint velocity
-        cartVel = np.array([xDot, yDot])
-        thetaDot = np.linalg.solve(J, cartVel)
-        thetaDot1, thetaDot2 = thetaDot[0], thetaDot[1]
-        
-        #compute Jacobian derivative for acceleration
-        Jdot11 = -L1*np.cos(theta1)*thetaDot1 - L2*np.cos(theta1 + theta2)*(thetaDot1 + thetaDot2)
-        Jdot12 = -L2*np.cos(theta1 + theta2)*(thetaDot1 + thetaDot2)
-        Jdot21 = -L1*np.sin(theta1)*thetaDot1 - L2*np.sin(theta1 + theta2)*(thetaDot1 + thetaDot2)
-        Jdot22 = -L2*np.sin(theta1 + theta2)*(thetaDot1 + thetaDot2)
-        Jdot = np.array([[Jdot11, Jdot12], [Jdot21, Jdot22]])
-        
-        #convert cartesian acceleration to joint acceleration
-        cartAccel = np.array([xDoubleDot, yDoubleDot])
-        thetaDoubleDot = np.linalg.solve(J, cartAccel - Jdot @ thetaDot)
-        thetaDoubleDot1, thetaDoubleDot2 = thetaDoubleDot[0], thetaDoubleDot[1]
-        
-        trajectory.append((theta1, theta2, thetaDot1, thetaDot2, thetaDoubleDot1, thetaDoubleDot2))
-        t += tStep
-    
-    #add longer pause at the end of the shape
-    finalTheta1, finalTheta2 = inverseKinematics(waypoints[0][0], waypoints[0][1])
-    t = 0
-    while t < endPauseTime:
-        trajectory.append((finalTheta1, finalTheta2, 0, 0, 0, 0))
-        t += tStep
-    
-    return trajectory
-
+    return waypoints
 
 #calculates the duration of the trajectory segment based on the distance between the initial and final positions
 #input: initial and final positions [x, y] 
 #output: total duration of trajectory (seconds)
 def cartesianTrajectoryDuration(initialPos, finalPos):
     
+    #get initial and final x, y coordinates
     initialX, initialY = initialPos
     finalX, finalY = finalPos
     
     #use pythagorean theorem to calculate the distance between the initial and final positions
     distance = np.sqrt((finalX - initialX)**2 + (finalY - initialY)**2)
     
-    #divide distance in meters by the maximum velocity of the end effector to get the duration 
+    #divide distance in meters by the maximum velocity the duration 
     totalDuration = distance / maxVelocity
-    
     
     return totalDuration
 
@@ -215,101 +145,95 @@ def cartesianTrajectoryDuration(initialPos, finalPos):
 #takes time within trajectory segment and returns position, velocity, acceleration for one axis
 #input: t (seconds), posInitial (meters), posFinal (meters), totalDuration (seconds)
 #output: pos (meters), vel (m/s), accel (m/s**2)
-def currentCartesianTrajectory(t, posInitial, posFinal, totalDuration):
+def currentTrajectory(t, posInitial, posFinal, totalDuration):
 
-    #calculate coefficients for trajectory cubic (same cubic polynomial for smooth motion)
+    #calculate coefficients for trajectory cubic
     c0 = posInitial
     c1 = 0
     c2 = 3*(posFinal - posInitial)/(totalDuration**2)
     c3 = -2*(posFinal - posInitial)/(totalDuration**3)
 
-    #generate cartesian states
-    pos = c0 + c1*t + c2*t**2 + c3*t**3
-    vel = c1 + 2*c2*t + 3*c3*t**2
-    accel = 2*c2 + 6*c3*t
-
-    return pos, vel, accel
-
-
-#generate cartesian trajectory segment between two waypoints (straight line in cartesian space)
-#input: initialPos [x, y] (meters), finalPos [x, y] (meters)
-#output: trajectory [(theta1, theta2, thetaDot1, thetaDot2, thetaDoubleDot1, thetaDoubleDot2)]
-def generateCartesianTrajectory(initialPos, finalPos):
+    #get position, velocity, and acceleration at time t
+    position = c0 + c1*t + c2*t**2 + c3*t**3
+    velocity = c1 + 2*c2*t + 3*c3*t**2
     
-    #create empty list to store trajectory
+    #acceleration not required. can uncomment later if needed
+    #accel = 2*c2 + 6*c3*t
+
+    return position, velocity
+
+
+#generate cartesian trajectory segment between two waypoints
+#input: initialPos [x, y] (meters), finalPos [x, y] (meters)
+#output: trajectory [(theta1, theta2, thetaDot1, thetaDot2)]
+def generateTrajectorySegment(initialPos, finalPos):
+    
+    #create empty list to store trajectory and get duration 
     trajectory = []
     totalDuration = cartesianTrajectoryDuration(initialPos, finalPos)
 
     t = 0
 
-    #generate cartesian trajectory and convert to joint space via IK
+    #while t is less than the total duration of the trajectory 
     while t < totalDuration:
-        #get cartesian position, velocity, acceleration at time t
-        x, xDot, xDoubleDot = currentCartesianTrajectory(t, initialPos[0], finalPos[0], totalDuration)
-        y, yDot, yDoubleDot = currentCartesianTrajectory(t, initialPos[1], finalPos[1], totalDuration)
         
-        #convert cartesian position to joint angles using inverse kinematics
+        #get posibion, velocity and acceleration for x and yat time t using currentTrajectory
+        x, xDot = currentTrajectory(t, initialPos[0], finalPos[0], totalDuration)
+        y, yDot = currentTrajectory(t, initialPos[1], finalPos[1], totalDuration)
+        
+        #use inverse kinematics to get joint angles at time t
         theta1, theta2 = inverseKinematics(x, y)
         
-        #compute Jacobian for velocity and acceleration conversion
+        #constructjacobian matrix for conversion from cartesian velocity to angular velocity
         J11 = -L1*np.sin(theta1) - L2*np.sin(theta1 + theta2)
         J12 = -L2*np.sin(theta1 + theta2)
         J21 = L1*np.cos(theta1) + L2*np.cos(theta1 + theta2)
         J22 = L2*np.cos(theta1 + theta2)
         J = np.array([[J11, J12], [J21, J22]])
         
-        #convert cartesian velocity to joint velocity: thetaDot = J^-1 * xDot
-        cartVel = np.array([xDot, yDot])
-        thetaDot = np.linalg.solve(J, cartVel)
-        thetaDot1, thetaDot2 = thetaDot[0], thetaDot[1]
+        #use jacobian to convert cartesian velocity to angular velocity for each joint
+        cartesianVelocity = np.array([xDot, yDot])
+        thetaDot = np.linalg.solve(J, cartesianVelocity)
+        thetaDot1 = thetaDot[0]
+        thetaDot2 = thetaDot[1]
         
-        #compute Jacobian derivative for acceleration conversion
-        Jdot11 = -L1*np.cos(theta1)*thetaDot1 - L2*np.cos(theta1 + theta2)*(thetaDot1 + thetaDot2)
-        Jdot12 = -L2*np.cos(theta1 + theta2)*(thetaDot1 + thetaDot2)
-        Jdot21 = -L1*np.sin(theta1)*thetaDot1 - L2*np.sin(theta1 + theta2)*(thetaDot1 + thetaDot2)
-        Jdot22 = -L2*np.sin(theta1 + theta2)*(thetaDot1 + thetaDot2)
-        Jdot = np.array([[Jdot11, Jdot12], [Jdot21, Jdot22]])
-        
-        #convert cartesian acceleration to joint acceleration: thetaDoubleDot = J^-1 * (xDoubleDot - Jdot * thetaDot)
-        cartAccel = np.array([xDoubleDot, yDoubleDot])
-        thetaDoubleDot = np.linalg.solve(J, cartAccel - Jdot @ thetaDot)
-        thetaDoubleDot1, thetaDoubleDot2 = thetaDoubleDot[0], thetaDoubleDot[1]
-        
-        trajectory.append((theta1, theta2, thetaDot1, thetaDot2, thetaDoubleDot1, thetaDoubleDot2))
+        #add to trajectory 
+        trajectory.append((theta1, theta2, thetaDot1, thetaDot2))
+       
         t += tStep
 
+    #reset time and add pause time at waypoint to assess controller performance. velocity is zero since it's paused
     t = 0
     
-    #add pause time at waypoint
+    #get joint angles at final position
     finalTheta1, finalTheta2 = inverseKinematics(finalPos[0], finalPos[1])
+    
     while t < pauseTime:
-        trajectory.append((finalTheta1, finalTheta2, 0, 0, 0, 0))
+        #add to trajectory 
+        trajectory.append((finalTheta1, finalTheta2, 0, 0))
         t += tStep
     
     return trajectory
 
 
-#generate full trajectory through all waypoints
+#Generates complete trajectory between the shape waypoints. Calls generateTrajectorySegment for each segment.
 #input: waypoints [[x1, y1], [x2, y2], ...]
-#output: full trajectory as numpy array
+#output: planned shape trajectory
 def generateFullTrajectory(waypoints):
     
+    #initialize emptylist for trajectory
     fullTrajectory = []
     
-    #generate trajectory between each consecutive pair of waypoints and add to the full trajectory
     for i in range(len(waypoints) - 1):
-        segment = generateCartesianTrajectory(waypoints[i], waypoints[i+1])
+        
+        #generate trajectory between the two consecutive points
+        segment = generateTrajectorySegment(waypoints[i], waypoints[i+1])
+        
+        #add the segment to the full trajectory
         fullTrajectory.extend(segment)
     
-    #add longer pause at the very end of animation
-    finalPos = waypoints[-1]
-    finalTheta1, finalTheta2 = inverseKinematics(finalPos[0], finalPos[1])
-    t = 0
-    while t < endPauseTime:
-        fullTrajectory.append((finalTheta1, finalTheta2, 0, 0, 0, 0))
-        t += tStep
-    
     return fullTrajectory
+
 
 #defines the equations of motion and control law for the robot
 #input: statevar (current state of the robot), t (current time), theta1Desired (desired theta1), theta2Desired (desired theta2), thetaDot1Desired (desired thetaDot1), thetaDot2Desired (desired thetaDot2), tSpan (time span), Kp (proportional gain), Kd (derivative gain)
@@ -400,23 +324,22 @@ def animate(event):
 
 #prompt user to select a shape 
 print("\n Cartesian Trajectory Shape Selection")
-print("1. Oval")
+print("1. Triangle")
 print("2. Square")
-print("3. Triangle")
+print("3. Star")
 
 #get input and strip whitespace
 shapeChoice = input("Enter shape (1/2/3): ").strip()
 
 #map user input to shape name
-shapeOptions = {'1': 'oval', '2': 'square', '3': 'triangle'}
+shapeOptions = {'1': 'triangle', '2': 'square', '3': 'star'}
 
-#get the shape name, default to oval if invalid input
-shapeName = shapeOptions.get(shapeChoice, 'oval')
+#get the shape name, default to triangle if invalid input
+shapeName = shapeOptions.get(shapeChoice, 'triangle')
 print(f"Selected shape: {shapeName}")
 
-#call generateShapeWaypoints to generate the waypoints necessary for the selected shape
-#function returns waypoints and a bool indicating if the shape is continuous
-waypoints, isContinuous = generateShapeWaypoints(shapeName, shapeCenter, sideLength)
+#call generateShapeWaypoints to generate the waypoints for the selected shape
+waypoints = generateShapeWaypoints(shapeName, shapeCenter, sideLength)
 
 #create figure object for plotting
 fig, figure = plt.subplots(figsize=(7, 7))
@@ -433,7 +356,7 @@ figure.set_ylabel('Y (meters)')
 
 #plot the target shape path
 waypointsArray = np.array(waypoints)
-shapePath, = figure.plot(waypointsArray[:, 0], waypointsArray[:, 1], 'g--', linewidth=2, label= 'Desired')
+shapePath, = figure.plot(waypointsArray[:, 0], waypointsArray[:, 1], 'g-', linewidth=2, alpha = 0.5, label= 'Desired')
 
 #show robot at starting configuration (first waypoint)
 startTheta1, startTheta2 = inverseKinematics(waypoints[0][0], waypoints[0][1])
@@ -442,19 +365,13 @@ link1, = figure.plot([0, x1Start], [0, y1Start], 'o-', linewidth=3, color='orang
 link2, = figure.plot([x1Start, x2Start], [y1Start, y2Start], 'o-', linewidth=3, color='orange')
 
 #add line for tracing end effector path during animation
-eePath, = figure.plot([], [], 'r-', linewidth=1.5, alpha=0.7, label='Actual')
+eePath, = figure.plot([], [], 'r-', linewidth=1.5, label='Actual')
 
 #add legend
 figure.legend(loc='upper right')
 
-#generate full cartesian trajectory through all waypoints
-if isContinuous:
-    #use continuous trajectory for smooth shapes like oval
-    ovalTime = 8.0  #total time to complete the oval (seconds)
-    fullTrajectory = generateContinuousTrajectory(waypoints, ovalTime)
-else:
-    #use piecewise trajectory with pauses for shapes with corners
-    fullTrajectory = generateFullTrajectory(waypoints)
+#generate full cartesian trajectory through all waypoints using piecewise method
+fullTrajectory = generateFullTrajectory(waypoints)
 
 #convert to array and extract desired states
 desiredTrajectory = np.array(fullTrajectory)
