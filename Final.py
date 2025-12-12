@@ -38,7 +38,7 @@ sideLength = 0.2
 #increased kp until there was no steady state error
 #started with Kd at 10 for both joints
 #increased kd of first joint to prevent overshoot
-#best results: q1[150, 200], q2[35, 100]
+#best results: q1[175, 220], q2[55, 150]
 #controller gains for joints 1 and 2
 Kp = np.array([175, 55])  
 Kd = np.array([220, 150])    
@@ -369,8 +369,7 @@ x1Start, y1Start, x2Start, y2Start = forwardKinematics(startTheta1, startTheta2)
 link1, = figure.plot([0, x1Start], [0, y1Start], 'o-', linewidth=3, color='orange')
 link2, = figure.plot([x1Start, x2Start], [y1Start, y2Start], 'o-', linewidth=3, color='orange')
 
-
-#generate full cartesian trajectory through all waypoints using piecewise method
+#generate full cartesian trajectory through all waypoints
 fullTrajectory = generateFullTrajectory(waypoints)
 
 #convert to array and extract desired states
