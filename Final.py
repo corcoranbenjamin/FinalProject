@@ -21,7 +21,7 @@ tStep = 0.01
 animationRunning = False
 
 #pause time at each waypoint
-pauseTime = .05 
+pauseTime = .15 
 
 #define workspace annulus
 minWS = abs(L1 - L2)  
@@ -35,9 +35,9 @@ shapeCenter = [0.4, 0.3]
 sideLength = 0.275  
 
 #notes:
-#increased kp until there was no steady state error
+#increased kp until there was minimal ss error
 #started with Kd at 10 for both joints
-#increased kd of first joint to prevent overshoot
+#increased kd to kill off oscillation and overshoot
 #best results: q1[175, 220], q2[55, 150]
 #controller gains for joints 1 and 2
 Kp = np.array([175, 55])  
@@ -128,11 +128,11 @@ def generateShapeWaypoints(shape, center, size):
 #calculates the duration of the trajectory segment based on the distance between the initial and final positions
 #input: initial and final positions [x, y] 
 #output: total duration of trajectory (seconds)
-def trajectorySegmentDuration(initialPos, finalPos):
+def trajectorySegmentDuration(initialPosition, finalPosition):
     
     #get initial and final x, y coordinates
-    initialX, initialY = initialPos
-    finalX, finalY = finalPos
+    initialX, initialY = initialPosition
+    finalX, finalY = finalPosition
     
     #use pythagorean theorem to calculate the distance between the initial and final positions
     distance = np.sqrt((finalX - initialX)**2 + (finalY - initialY)**2)
@@ -336,7 +336,7 @@ shapeChoice = input("Enter shape (1/2/3): ").strip()
 shapeOptions = {'1': 'triangle', '2': 'square', '3': 'star'}
 
 #get the shape name, default to triangle if invalid input
-shapeName = shapeOptions.get(shapeChoice, 'triangle')
+shapeName = shapeOptions.get(shapeChoice, 'star')
 print(f"Selected shape: {shapeName}")
 
 #call generateShapeWaypoints to generate the waypoints for the selected shape
@@ -346,8 +346,8 @@ waypoints = generateShapeWaypoints(shapeName, shapeCenter, sideLength)
 fig, figure = plt.subplots(figsize=(7, 7))
 
 #add minimum and maximum workspace circles to show annulus (area between inner and outer circles)
-innerCircle = Circle((0, 0), minWS, fill=False, linestyle ='--', edgecolor='black', alpha = .5, linewidth=1)
-outerCircle = Circle((0, 0), maxWS, fill=False, linestyle = '--', edgecolor='black', alpha = .5, linewidth=1)
+innerCircle = Circle((0, 0), minWS, fill=False, linestyle ='--', edgecolor='darkred', alpha = .5, linewidth=1)
+outerCircle = Circle((0, 0), maxWS, fill=False, linestyle = '--', edgecolor='darkred', alpha = .5, linewidth=1)
 figure.add_patch(innerCircle)
 figure.add_patch(outerCircle)
 figure.set_xlim(-maxWS - 0.2, maxWS + 0.2)
