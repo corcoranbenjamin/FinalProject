@@ -1,7 +1,7 @@
 
 import numpy as np #numpy for all math 
 import matplotlib.pyplot as plt #matplotlib is for plotting
-from matplotlib.patches import Circle, Polygon #brings in circle and polygon for the plot
+from matplotlib.patches import Circle #brings in circle and polygon for the plot
 from scipy.integrate import odeint #for ODE simulation
 
 #************************ VARIABLES ***************************
