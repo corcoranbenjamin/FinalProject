@@ -190,7 +190,7 @@ def generateTrajectorySegment(initialPosition, finalPosition):
         #use inverse kinematics to get joint angles at time t
         theta1, theta2 = inverseKinematics(x, y)
         
-        #constructjacobian matrix for conversion from cartesian velocity to angular velocity
+        #construct jacobian matrix for conversion from cartesian velocity to angular velocity
         J11 = -L1*np.sin(theta1) - L2*np.sin(theta1 + theta2)
         J12 = -L2*np.sin(theta1 + theta2)
         J21 = L1*np.cos(theta1) + L2*np.cos(theta1 + theta2)
@@ -327,7 +327,6 @@ def animate(event):
 
 
 #************************ MAIN ***************************
-
 #prompt user to select a shape 
 print("\n Cartesian Trajectory Shape Selection")
 print("1. Triangle | 2. Square | 3. Star")
