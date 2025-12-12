@@ -1,3 +1,4 @@
+from turtle import color
 import numpy as np #numpy for all math 
 import matplotlib.pyplot as plt #matplotlib is for plotting
 from matplotlib.patches import Circle, Polygon #brings in circle and polygon for the plot
@@ -20,27 +21,27 @@ tStep = 0.01
 animationRunning = False
 
 #pause time at each waypoint
-pauseTime = 0.75 
+pauseTime = .30 
 
 #define workspace annulus
 minWS = abs(L1 - L2)  
 maxWS = L1 + L2     
 
-#maximum velocity of the end effector
-maxVelocity = 0.15 
+#maximum velocity of the end effector m/s
+maxVelocity = 0.60
 
 #initialize center of shape and radius/side length size
-shapeCenter = [0.4, 0.4] 
+shapeCenter = [0.4, 0.3] 
 sideLength = 0.2  
 
 #notes:
 #increased kp until there was no steady state error
 #started with Kd at 10 for both joints
 #increased kd of first joint to prevent overshoot
-#best results: [15, 50], [50, 10]
+#best results: q1[150, 200], q2[35, 100]
 #controller gains for joints 1 and 2
-Kp = np.array([15, 50])  
-Kd = np.array([100, 10])    
+Kp = np.array([175, 55])  
+Kd = np.array([220, 150])    
 
 
 #************************ FUNCTIONS ***************************
@@ -82,8 +83,8 @@ def generateShapeWaypoints(shape, center, size):
     if shape == 'star':
         #generate 5-pointed star
         outerRadius = size
-        innerRadius = size * 0.4  #inner points closer to center
-        numPoints = 5
+        innerRadius = size * 0.40  #inner points closer to center
+        numPoints = 7
         
         for i in range(numPoints):
             #outer point
@@ -164,7 +165,7 @@ def currentTrajectory(t, initialPosition, finalPosition, totalDuration):
 
 
 #generate straight trajectory segment between two points 
-#input: initialPos [x, y] (meters), finalPos [x, y] (meters)
+#input: initialPos [x, y], finalPos [x, y] (meters)
 #output: trajectory [(theta1, theta2, thetaDot1, thetaDot2)]
 def generateTrajectorySegment(initialPosition, finalPosition):
     
@@ -246,7 +247,7 @@ def manipulatorEOM(statevar, t, theta1Desired, theta2Desired, thetaDot1Desired, 
     thetaDot1 = statevar[2]
     thetaDot2 = statevar[3]
 
-    #subtract current time from each element in tSpan. Find the minimum and that is closest to the current time
+    #subtract current time from each element in tSpan. Find the minimum, that is current time index
     i = np.argmin(np.abs(tSpan - t)) 
    
     #Mass Matrix
@@ -289,10 +290,10 @@ def animate(event):
     if event.key == 'enter' and animationRunning == False:
 
         #set animationRan flag so animation only runs once
-        figure.set_title(f'Animating {shapeName}')
+        figure.set_title(f'Animating {shapeName} trajectory')
         animationRunning = True
 
-        #store EE trace for visualization
+        #store EE trace for animation
         eeTraceX = []
         eeTraceY = []
 
@@ -345,8 +346,8 @@ waypoints = generateShapeWaypoints(shapeName, shapeCenter, sideLength)
 fig, figure = plt.subplots(figsize=(7, 7))
 
 #add minimum and maximum workspace circles to show annulus (area between inner and outer circles)
-innerCircle = Circle((0, 0), minWS, fill=False, edgecolor='red', linewidth=1)
-outerCircle = Circle((0, 0), maxWS, fill=False, edgecolor='blue', linewidth=1)
+innerCircle = Circle((0, 0), minWS, fill=False, linestyle ='--', edgecolor='black', alpha = .5, linewidth=1)
+outerCircle = Circle((0, 0), maxWS, fill=False, linestyle = '--', edgecolor='black', alpha = .5, linewidth=1)
 figure.add_patch(innerCircle)
 figure.add_patch(outerCircle)
 figure.set_xlim(-maxWS - 0.2, maxWS + 0.2)
@@ -354,9 +355,13 @@ figure.set_ylim(-maxWS - 0.2, maxWS + 0.2)
 figure.set_xlabel('X (meters)')
 figure.set_ylabel('Y (meters)')
 
-#plot the target shape path
+#add desired shape path to the figure
 waypointsArray = np.array(waypoints)
-shapePath, = figure.plot(waypointsArray[:, 0], waypointsArray[:, 1], 'g-', linewidth=2, alpha = 0.5, label= 'Desired')
+shapePath, = figure.plot(waypointsArray[:, 0], waypointsArray[:, 1], 'k-', linewidth=2, alpha = .90,label= 'Desired Path')
+figure.legend(loc='upper left')
+
+#create empty path object to update during animation to trace end effector path
+eePath, = figure.plot([], [], 'w-', linewidth=1)
 
 #show robot at starting configuration (first waypoint)
 startTheta1, startTheta2 = inverseKinematics(waypoints[0][0], waypoints[0][1])
@@ -364,11 +369,6 @@ x1Start, y1Start, x2Start, y2Start = forwardKinematics(startTheta1, startTheta2)
 link1, = figure.plot([0, x1Start], [0, y1Start], 'o-', linewidth=3, color='orange')
 link2, = figure.plot([x1Start, x2Start], [y1Start, y2Start], 'o-', linewidth=3, color='orange')
 
-#add line for tracing end effector path during animation
-eePath, = figure.plot([], [], 'r-', linewidth=1.5, label='Actual')
-
-#add legend
-figure.legend(loc='upper left')
 
 #generate full cartesian trajectory through all waypoints using piecewise method
 fullTrajectory = generateFullTrajectory(waypoints)
@@ -380,7 +380,7 @@ theta2Desired = desiredTrajectory[:, 1]
 thetaDot1Desired = desiredTrajectory[:, 2]
 thetaDot2Desired = desiredTrajectory[:, 3]
 
-#create time array to map to desired trajectory
+#create time array to map to trajectory trajectory
 tSpan = np.linspace(0, len(desiredTrajectory) * tStep, len(desiredTrajectory))
 
 #initial state (starting at first waypoint)
@@ -395,7 +395,6 @@ theta2 = statevarlist[:, 1]
 thetaDot1 = statevarlist[:, 2]
 thetaDot2 = statevarlist[:, 3]
 
-
 #************************ PLOTS  ***************************
 #convert error and theta to degrees for plotting
 theta1DesiredDeg = np.rad2deg(theta1Desired)
@@ -405,31 +404,39 @@ theta2ActualDeg = np.rad2deg(theta2)
 theta1Error = np.rad2deg(theta1Desired - theta1)
 theta2Error = np.rad2deg(theta2Desired - theta2)
 
-#compute cartesian tracking error
+#create empty lists for desired and actual x, y values
 xDesired = []
 yDesired = []
 xActual = []
 yActual = []
 
+#use inverse kinematics to get desired x, y coordinated at each time step 
 for i in range(len(theta1)):
-    _, _, xd, yd = forwardKinematics(theta1Desired[i], theta2Desired[i])
-    _, _, xa, ya = forwardKinematics(theta1[i], theta2[i])
-    xDesired.append(xd)
-    yDesired.append(yd)
-    xActual.append(xa)
-    yActual.append(ya)
+    
+    _, _, xD, yD = forwardKinematics(theta1Desired[i], theta2Desired[i])
+    _, _, xA, yA = forwardKinematics(theta1[i], theta2[i])
+    
+    #append values to lists
+    xDesired.append(xD)
+    yDesired.append(yD)
+    xActual.append(xA)
+    yActual.append(yA)
+
+#convert lists to arrays
 xDesired = np.array(xDesired)
 yDesired = np.array(yDesired)
 xActual = np.array(xActual)
 yActual = np.array(yActual)
-cartesianError = np.sqrt((xDesired - xActual)**2 + (yDesired - yActual)**2) * 1000  #in mm
+
+#calculate distance error using pythagorean theorem
+distanceError = np.sqrt((xDesired - xActual)**2 + (yDesired - yActual)**2) * 1000  #in mm
 
 #plot desired vs actual and error for each joint 
 plt.figure(figsize=(12, 10))
 plt.suptitle(f'Controller Performance - {shapeName.capitalize()} Trajectory', fontsize=14)
 
 plt.subplot(2, 2, 1)
-plt.plot(tSpan, theta1DesiredDeg, 'b--', linewidth=2, label='Desired')
+plt.plot(tSpan, theta1DesiredDeg, 'g-', linewidth=2, label='Desired')
 plt.plot(tSpan, theta1ActualDeg, 'r-', linewidth=1, label='Actual')
 plt.ylabel('Joint 1 Angle (deg)')
 plt.title('Joint 1 Position Tracking')
@@ -437,7 +444,7 @@ plt.legend()
 plt.grid(True)
 
 plt.subplot(2, 2, 2)
-plt.plot(tSpan, theta2DesiredDeg, 'b--', linewidth=2, label='Desired')
+plt.plot(tSpan, theta2DesiredDeg, 'g-', linewidth=2, label='Desired')
 plt.plot(tSpan, theta2ActualDeg, 'r-', linewidth=1, label='Actual')
 plt.ylabel('Joint 2 Angle (deg)')
 plt.title('Joint 2 Position Tracking')
@@ -454,7 +461,7 @@ plt.legend()
 plt.grid(True)
 
 plt.subplot(2, 2, 4)
-plt.plot(tSpan, cartesianError, 'g-', linewidth=1.5)
+plt.plot(tSpan, distanceError, 'g-', linewidth=1.5)
 plt.ylabel('Cartesian Error (mm)')
 plt.xlabel('Time (s)')
 plt.title('End-Effector Cartesian Tracking Error')
@@ -463,9 +470,10 @@ plt.grid(True)
 plt.tight_layout()
 
 #set title for animation figure
-figure.set_title(f'Press Enter to animate {shapeName}')
+figure.set_title(f'Press Enter to animate {shapeName} trajectory')
 
 #connect event handler to start animation on Enter key
 fig.canvas.mpl_connect('key_press_event', animate)
+
 
 plt.show()
