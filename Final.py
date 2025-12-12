@@ -73,61 +73,66 @@ def forwardKinematics(theta1, theta2):
 
 
 #generates waypoints for the selected shape
-#input: shape (string: 'star', 'square', 'triangle'), center [x, y], size (radius or side length)
-#output: list of waypoints [[x1, y1], [x2, y2], ...]
+#input: shape (star, square, triangle)
+#output: waypoints list [[x1, y1], [x2, y2], ...]
 def generateShapeWaypoints(shape, center, size):
     
     waypoints = []
-    cx, cy = center
+    xCenter, yCenter = center
     
+    #generate waypoints according shape input
     if shape == 'star':
+        
         #generate 5-pointed star
         outerRadius = size
-        innerRadius = size * 0.40  #inner points closer to center
-        numPoints = 7
+        innerRadius = size * 0.40  
+        numPoints = 6
         
+        #generate points along inner and outer star radius
         for i in range(numPoints):
-            #outer point
-            angle = (2 * np.pi * i / numPoints) - np.pi/2  #start at top
-            x = cx + outerRadius * np.cos(angle)
-            y = cy + outerRadius * np.sin(angle)
+            
+            #outer points
+            currAngle = (2 * np.pi * i / numPoints)
+            x = xCenter + outerRadius * np.cos(currAngle)
+            y = yCenter + outerRadius * np.sin(currAngle)
             waypoints.append([x, y])
             
-            #inner point (between outer points)
-            angle = (2 * np.pi * (i + 0.5) / numPoints) - np.pi/2
-            x = cx + innerRadius * np.cos(angle)
-            y = cy + innerRadius * np.sin(angle)
+            #inner points
+            currAngle = (2 * np.pi * (i + 0.5) / numPoints)
+            x = xCenter + innerRadius * np.cos(currAngle)
+            y = yCenter + innerRadius * np.sin(currAngle)
             waypoints.append([x, y])
         
-        #close the star
+        #add beginning point to close the star
         waypoints.append(waypoints[0])
             
     elif shape == 'square':
-        #generate 4 corners of square, starting from top-right going clockwise
-        halfSize = size / 2
-        waypoints = [
-            [cx + halfSize, cy + halfSize],  #top right
-            [cx - halfSize, cy + halfSize],  #top left
-            [cx - halfSize, cy - halfSize],  #bottom left
-            [cx + halfSize, cy - halfSize],  #bottom right
-            [cx + halfSize, cy + halfSize]   #back to start
-        ]
+        
+        #four points evenly spaced around a circle
+        for i in range(5):  
+            
+            #increments by 2pi/4 radians. 
+            currAngle = (2 * np.pi * i / 4)
+            x = xCenter + size * np.cos(currAngle)
+            y = yCenter + size * np.sin(currAngle)
+            waypoints.append([x, y])
         
     elif shape == 'triangle':
-        #generate equilateral triangle vertices, pointing up
-        height = size * np.sqrt(3) / 2
-        waypoints = [
-            [cx, cy + 2*height/3],              #top vertex
-            [cx - size/2, cy - height/3],       #bottom left
-            [cx + size/2, cy - height/3],       #bottom right
-            [cx, cy + 2*height/3]               #back to start
-        ]
+    
+        #three points evenly spaced around a circle
+        for i in range(4):  
+            
+            #increments by 2pi/3 radians. 
+            currAngle = (2 * np.pi * i / 3)  
+            x = xCenter + size * np.cos(currAngle)
+            y = yCenter + size * np.sin(currAngle)
+            waypoints.append([x, y])
     
     return waypoints
 
 #calculates the duration of the trajectory segment based on the distance between the initial and final positions
 #input: initial and final positions [x, y] 
-#output: total duration of trajectory (seconds)
+#output: total duration of the trajectory (seconds)
 def trajectorySegmentDuration(initialPosition, finalPosition):
     
     #get initial and final x, y coordinates
@@ -325,9 +330,7 @@ def animate(event):
 
 #prompt user to select a shape 
 print("\n Cartesian Trajectory Shape Selection")
-print("1. Triangle")
-print("2. Square")
-print("3. Star")
+print("1. Triangle | 2. Square | 3. Star")
 
 #get input and strip whitespace
 shapeChoice = input("Enter shape (1/2/3): ").strip()
@@ -337,7 +340,6 @@ shapeOptions = {'1': 'triangle', '2': 'square', '3': 'star'}
 
 #get the shape name, default to triangle if invalid input
 shapeName = shapeOptions.get(shapeChoice, 'star')
-print(f"Selected shape: {shapeName}")
 
 #call generateShapeWaypoints to generate the waypoints for the selected shape
 waypoints = generateShapeWaypoints(shapeName, shapeCenter, sideLength)
@@ -427,32 +429,32 @@ yDesired = np.array(yDesired)
 xActual = np.array(xActual)
 yActual = np.array(yActual)
 
-#calculate distance error using pythagorean theorem
-distanceError = np.sqrt((xDesired - xActual)**2 + (yDesired - yActual)**2) * 1000  #in mm
+#calculate distance error in mm using pythagorean theorem
+distanceError = np.sqrt((xDesired - xActual)**2 + (yDesired - yActual)**2) * 1000 
 
 #plot desired vs actual and error for each joint 
 plt.figure(figsize=(12, 10))
 plt.suptitle(f'Controller Performance - {shapeName.capitalize()} Trajectory', fontsize=14)
 
 plt.subplot(2, 2, 1)
-plt.plot(tSpan, theta1DesiredDeg, 'g-', linewidth=2, label='Desired')
-plt.plot(tSpan, theta1ActualDeg, 'r-', linewidth=1, label='Actual')
+plt.plot(tSpan, theta1DesiredDeg, 'b-', linewidth=2, label='Desired')
+plt.plot(tSpan, theta1ActualDeg, 'orange', linewidth=1, label='Actual')
 plt.ylabel('Joint 1 Angle (deg)')
-plt.title('Joint 1 Position Tracking')
+plt.title('Joint 1 Tracking')
 plt.legend()
 plt.grid(True)
 
 plt.subplot(2, 2, 2)
-plt.plot(tSpan, theta2DesiredDeg, 'g-', linewidth=2, label='Desired')
-plt.plot(tSpan, theta2ActualDeg, 'r-', linewidth=1, label='Actual')
+plt.plot(tSpan, theta2DesiredDeg, 'b-', linewidth=2, label='Desired')
+plt.plot(tSpan, theta2ActualDeg, 'orange', linewidth=1, label='Actual')
 plt.ylabel('Joint 2 Angle (deg)')
-plt.title('Joint 2 Position Tracking')
+plt.title('Joint 2 Tracking')
 plt.legend()
 plt.grid(True)
 
 plt.subplot(2, 2, 3)
-plt.plot(tSpan, theta1Error, 'k-', linewidth=1.5, label='Joint 1')
-plt.plot(tSpan, theta2Error, 'm-', linewidth=1.5, label='Joint 2')
+plt.plot(tSpan, theta1Error, 'b-', linewidth=1, label='Joint 1')
+plt.plot(tSpan, theta2Error, 'orange', linewidth=1, label='Joint 2')
 plt.ylabel('Joint Error (deg)')
 plt.xlabel('Time (s)')
 plt.title('Joint Tracking Errors')
@@ -460,10 +462,10 @@ plt.legend()
 plt.grid(True)
 
 plt.subplot(2, 2, 4)
-plt.plot(tSpan, distanceError, 'g-', linewidth=1.5)
+plt.plot(tSpan, distanceError, 'b-', linewidth=1)
 plt.ylabel('Cartesian Error (mm)')
 plt.xlabel('Time (s)')
-plt.title('End-Effector Cartesian Tracking Error')
+plt.title('EE Cartesian Error')
 plt.grid(True)
 
 plt.tight_layout()
