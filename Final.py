@@ -21,18 +21,18 @@ tStep = 0.01
 animationRunning = False
 
 #pause time at each waypoint
-pauseTime = .30 
+pauseTime = .05 
 
 #define workspace annulus
 minWS = abs(L1 - L2)  
 maxWS = L1 + L2     
 
 #maximum velocity of the end effector m/s
-maxVelocity = 0.60
+maxVelocity = 0.65
 
 #initialize center of shape and radius/side length size
 shapeCenter = [0.4, 0.3] 
-sideLength = 0.2  
+sideLength = 0.275  
 
 #notes:
 #increased kp until there was no steady state error
@@ -314,7 +314,7 @@ def animate(event):
         
         #set animation running flag back to false and update title
         animationRunning = False
-        figure.set_title(f'Press Enter to animate {shapeName}')
+        figure.set_title(f'Press Enter to animate {shapeName} trajectory')
         
         #clear the trace for next animation
         eePath.set_data([], [])
